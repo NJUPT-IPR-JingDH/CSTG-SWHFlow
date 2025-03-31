@@ -8,7 +8,6 @@ from utils.util import opt_get
 from functools import reduce
 from models.modules.ZeroIIformer import LayerNorm
 
-######特别重要
 class CondAffineSeparatedAndCond(nn.Module):
     def __init__(self, in_channels, opt,fFeatures_firstConv):
         super().__init__()
@@ -91,13 +90,13 @@ class CondAffineSeparatedAndCond(nn.Module):
         assert scale.shape[1] == shift.shape[1], (scale.shape[1], shift.shape[1])
         assert scale.shape[1] == z2.shape[1], (scale.shape[1], z1.shape[1], z2.shape[1])
 
-    ######有用
+
     def get_logdet(self, scale):
         return thops.sum(torch.log(scale), dim=[1, 2, 3])
 
-    ######有用
+
     def feature_extract(self, z, f):
-        #########重要
+
         h = f(z)  # z=8,320,96,96, h=8,24,96,96
         # h = h + z
         shift, scale = thops.split_feature(h, "cross")
@@ -110,7 +109,7 @@ class CondAffineSeparatedAndCond(nn.Module):
         output = (torch.sigmoid(scale + 2.) + self.affine_eps)
         return output
 
-    ######有用
+
     def feature_extract_aff(self, z1, ft, f):
         z = torch.cat([z1, ft], dim=1)
         h = f(z)
@@ -158,7 +157,7 @@ class SWHF(nn.Module):
             layers_1.append(Conv2d(hidden_channels, hidden_channels, kernel_size=kernel_hidden))
             layers_1.append(nn.GELU())
         self.model_1 = nn.Sequential(*layers_1)
-        self.SFA = ChannelGate_C(gate_channels=1)
+        self.SFA = ChannelGate_C(gate_channels=hidden_channels)
         self.WFA = ChannelGate_WH(gate_channels=hidden_channels, pool_types=('w_max', 'w_avg'))
         self.HFA = ChannelGate_WH(gate_channels=hidden_channels, pool_types=('h_max', 'h_avg'))
         layers_2 = []
@@ -198,7 +197,6 @@ class MFL(nn.Module):
         x2 = self.conv5(x)
         x3 = self.conv7(x)
         x4 = self.conv9(x)
-        # x = torch.cat((x1, x2, x3, x4), dim=1)
         x_cat = torch.cat((x1, x2, x3, x4), dim=1)
         x_cat = self.norm(x_cat)
         x_cat = torch.cat((torch.max(x_cat, 1)[0].unsqueeze(1), torch.mean(x_cat, 1).unsqueeze(1)) , dim=1)
@@ -216,51 +214,48 @@ class ChannelGate_C(nn.Module):
         self.conv = nn.Sequential(
             nn.Conv2d(gate_channels, gate_channels * 2, kernel_size=1, bias=True),
             nn.Conv2d(gate_channels * 2, gate_channels * 2, kernel_size=3, stride=1, padding=1,
-                                    groups=gate_channels * 2, bias=True),
-            nn.Conv2d(gate_channels * 2, gate_channels, kernel_size=1, bias=True)
+                                    groups=gate_channels * 2, bias=True)
         )
+        self.conv1 = nn.Conv2d(2, 1, kernel_size=1, bias=True)
 
     def forward(self, x):
-        scale_c_max = torch.max(x, 1)[0].unsqueeze(1)
-        scale_c_max = self.conv(scale_c_max)
-        scale_c_mean = torch.mean(x, 1).unsqueeze(1)
-        scale_c_mean = self.conv(scale_c_mean)
-        scale = torch.sigmoid(scale_c_max + scale_c_mean)
+        y = self.conv(x)
+        scale_c_max = torch.max(y, 1)[0].unsqueeze(1)
+        scale_c_mean = torch.mean(y, 1).unsqueeze(1)
+        fusion = torch.cat((scale_c_max, scale_c_mean), dim=1)
+        scale = self.conv1(fusion)
+        scale = torch.sigmoid(scale)
         return x * scale
 
 
-class ChannelGate_WH(nn.Module):##修正版
+class ChannelGate_WH(nn.Module):
     def __init__(self, gate_channels, pool_types):
         super(ChannelGate_WH, self).__init__()
         self.gate_channels = gate_channels
         self.conv = nn.Sequential(
             nn.Conv2d(gate_channels, gate_channels * 2, kernel_size=1, bias=True),
             nn.Conv2d(gate_channels * 2, gate_channels * 2, kernel_size=3, stride=1, padding=1,
-                                    groups=gate_channels * 2, bias=True),
-            nn.Conv2d(gate_channels * 2, gate_channels, kernel_size=1, bias=True)
-        )
+                                    groups=gate_channels * 2, bias=True))
         self.pool_types = pool_types
-
+        self.conv1 = nn.Conv2d(gate_channels * 4, gate_channels, kernel_size=1, bias=True)
     def forward(self, x):
+        y = self.conv(x)
         for pool_type in self.pool_types:
             if pool_type == 'h_avg':
-                h_avg_pool = F.avg_pool2d(x, (x.size(2), 1), stride=(x.size(2), 1))
-                h_avg_pool = self.conv(h_avg_pool)
+                h_avg_pool = F.avg_pool2d(y, (y.size(2), 1), stride=(y.size(2), 1))
                 scale_avg = h_avg_pool
             elif pool_type == 'w_max':
-                w_max_pool = F.max_pool2d(x, (1, x.size(3)), stride=(1, x.size(3)))
-                w_max_pool = self.conv(w_max_pool)
+                w_max_pool = F.max_pool2d(y, (1, y.size(3)), stride=(1, y.size(3)))
                 scale_max = w_max_pool
             elif pool_type == 'h_max':
-                h_max_pool = F.max_pool2d(x, (x.size(2), 1), stride=(x.size(2), 1))
-                h_max_pool = self.conv(h_max_pool)
+                h_max_pool = F.max_pool2d(y, (y.size(2), 1), stride=(y.size(2), 1))
                 scale_max = h_max_pool
             elif pool_type == 'w_avg':
-                w_avg_pool = F.avg_pool2d(x, (1, x.size(3)), stride=(1, x.size(3)))
-                w_avg_pool = self.conv(w_avg_pool)
+                w_avg_pool = F.avg_pool2d(y, (1, y.size(3)), stride=(1, y.size(3)))
                 scale_avg = w_avg_pool
-
-        scale = torch.sigmoid(scale_avg + scale_max).expand_as(x)
+        fusion = torch.cat((scale_avg, scale_max), dim=1)
+        scale = self.conv1(fusion)
+        scale = torch.sigmoid(scale).expand_as(x)
 
         return x * scale
 ###############################################################################################################

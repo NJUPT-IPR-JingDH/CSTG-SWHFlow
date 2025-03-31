@@ -9,11 +9,8 @@ SID & SMID & SDSD (indoor & outdoor): Please refer to the paper [SNR-aware Low-L
 ## Testing
 
 ### Pre-trained Models
-[Download pre-trained models](https://pan.baidu.com/s/1URb-UTMpDDW_OQquE7sGVg?pwd=xjmb)
+The pretrained models will be released soon.
 
-## Zero-map set
-We construct a zero-map set with zero-maps from real-world outdoor night monitoring images, which are randomly combined with low-light images of public datasets, to form low-light images with massive zero-element pixels.
-Zero-map set: [Google Drive](https://drive.google.com/file/d/165Mx9sEYIyba9joK19B7o4MQlAq2WRcH/view?usp=sharing)
 
 ## Run the testing code
 
@@ -21,27 +18,26 @@ You need to specify the model path `model_path` in the config file.
 Then run:
 
 ```bash
-python test.py
+python test_for_lol.py
 ```
 
-You need to specify the model path `model_path` in the config file, put our zero-maps into:
-
-```
-.\Test\masks
-```
-
-and put low-light image into:
-
-```
-.\Test\low
-```
-
-Then run:
-
-```bash
-python test_with_zeromaps.py
-```
 
 Dataroots of both training and testing can be changed on `datasets/val/root` of config file. Dataroot of training can be changed on `datasets/train/root`
 
+## Trainning
+To train on your own datasets, you need to specify the path of the dataroot in config file, then run:
 
+```bash
+python train.py
+```
+
+the root of dataset should be like this:
+```bash
+Your_own_datasets
+      |_train
+        |__low
+        |__high
+      |_test
+        |__low
+        |__high
+```

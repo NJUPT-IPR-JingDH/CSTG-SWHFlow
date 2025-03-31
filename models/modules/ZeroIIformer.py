@@ -110,8 +110,6 @@ class TransformerBlock_withZeromap(nn.Module):
         self.ffn = FeedForward(dim, ffn_expansion_factor, bias)
 
     def forward(self, x, zero_map):
-        # m = self.attn_inter(x, zero_map)
-        # z = x + self.attn_intra(m, zero_map)
         z = self.attn_intra(x, zero_map)
 
         out = z + self.ffn(self.norm2(z))
@@ -127,8 +125,6 @@ class TransformerBlock_noZeromap(nn.Module):
         self.ffn = FeedForward(dim, ffn_expansion_factor, bias)
 
     def forward(self, x, zero_map):
-        # m = self.attn_inter(x, None)
-        # z = x + self.attn_intra(m)
         z = self.attn_intra(x)
 
         out = z + self.ffn(self.norm2(z))
@@ -150,7 +146,6 @@ class Attention_withZeromap(nn.Module):
         self.project_out = nn.Conv2d(dim, dim, kernel_size=1, bias=bias)
 
     def forward(self, x, zero_map):
-        #采用3之W×W、max方案
         zero_map[zero_map <= 0.2] = 0
         zero_map[zero_map > 0.2] = 1
         zero_map = F.interpolate(zero_map, (x.shape[2], x.shape[3]), mode='bilinear')
@@ -158,7 +153,7 @@ class Attention_withZeromap(nn.Module):
         x = self.norm1(x)
         x = self.qkv(x)
         qkv = self.qkv_dwconv(x)
-        q_1, k_1, v_1 = qkv.chunk(3, dim=1)#分出feature的QKV
+        q_1, k_1, v_1 = qkv.chunk(3, dim=1)
 
         q_1 = torch.mean(q_1, 2).unsqueeze(1)
         k_1 = torch.max(k_1, 2)[0].unsqueeze(1)
@@ -169,8 +164,8 @@ class Attention_withZeromap(nn.Module):
         q_1 = torch.nn.functional.normalize(q_1, dim=-1)
         k_1 = torch.nn.functional.normalize(k_1, dim=-1)
 
-        attn_1 = (q_1.transpose(-1, -2) @ k_1) * self.temperature1 #Q变为W×C，乘以K之C×W(W×C×C×W)得W×W
-        attn_z1 = (q_z1.transpose(-1, -2) @ k_z1) * self.temperature2 #Q变为W×C，乘以K之C×W(W×C×C×W)得W×W
+        attn_1 = (q_1.transpose(-1, -2) @ k_1) * self.temperature1
+        attn_z1 = (q_z1.transpose(-1, -2) @ k_z1) * self.temperature2
 
         attn_1 = attn_1.softmax(dim=-1)
         attn_z1 = attn_z1.softmax(dim=-1)
@@ -181,7 +176,6 @@ class Attention_withZeromap(nn.Module):
 
         out_1 = x_copy + out_1
 
-        #采用1之H×H方案
         out_copy = out_1
         out_1 = self.norm1(out_1)
         out = self.qkv(out_1)
@@ -224,12 +218,11 @@ class Attention_noZeromap(nn.Module):
         self.project_out = nn.Conv2d(dim, dim, kernel_size=1, bias=bias)
 
     def forward(self, x, ):
-        #采用3之W×W、max方案
         x_copy = x
         x = self.norm1(x)
         x = self.qkv(x)
         qkv = self.qkv_dwconv(x)
-        q_1, k_1, v_1 = qkv.chunk(3, dim=1)#分出QKV
+        q_1, k_1, v_1 = qkv.chunk(3, dim=1)
 
         q_1 = torch.mean(q_1, 2).unsqueeze(1)
         k_1 = torch.max(k_1, 2)[0].unsqueeze(1)
@@ -237,14 +230,13 @@ class Attention_noZeromap(nn.Module):
         q_1 = torch.nn.functional.normalize(q_1, dim=-1)
         k_1 = torch.nn.functional.normalize(k_1, dim=-1)
 
-        attn_1 = (q_1.transpose(-1, -2) @ k_1) * self.temperature1 #Q变为W×C，乘以K之C×W(W×C×C×W)得W×W
+        attn_1 = (q_1.transpose(-1, -2) @ k_1) * self.temperature1
 
         attn_1 = attn_1.softmax(dim=-1)
         out_1 = v_1 @ attn_1
         out_1 = self.project_out(out_1)
         out_1 = x_copy + out_1
 
-        #采用1之H×H方案
         out_copy = out_1
         out_1 = self.norm1(out_1)
         out = self.qkv(out_1)
@@ -282,7 +274,6 @@ class FeedForward(nn.Module):
         self.conv3 = nn.Conv2d(dim, int(dim / 4), 3, 1, 1, bias=bias)
         self.conv5 = nn.Conv2d(dim, int(dim / 4), 5, 1, 2, bias=bias)
         self.conv7 = nn.Conv2d(dim, int(dim / 4), 7, 1, 3, bias=bias)
-        #self.conv9 = nn.Conv2d(dim, int(dim / 4), 9, 1, 4, bias=bias)
         self.conv_final = nn.Conv2d(dim, dim, 1, 1, 0, bias=bias, groups = 1)
         self.sigmoid = nn.Sigmoid()
 
@@ -298,7 +289,6 @@ class FeedForward(nn.Module):
         x2 = self.sigmoid(x2)
 
         x = F.gelu(x1) * x2
-        # x = self.project_out(x)
         return x
 
 def conv(in_channels, out_channels, kernel_size, bias=False, stride=1):
@@ -464,13 +454,11 @@ class former(nn.Module):
 
         out_enc_level1 = self.encoder_level1(y, zero_map)
         inp_enc_level2 = self.down1_2(out_enc_level1)
-        zero_1 = downmask(mask, int(2))  # 相应下采样
-        # zero_1 = self.down1_2(zero_map)
+        zero_1 = downmask(mask, int(2))
 
         out_enc_level2 = self.encoder_level2(inp_enc_level2, zero_1)
         inp_enc_level3 = self.down2_3(out_enc_level2)
         zero_2 = downmask(mask, int(2 ** 2))
-        # zero_2 = self.down2_3(zero_1)
 
         out_enc_level3 = self.encoder_level3(inp_enc_level3, zero_2)
         inp_enc_level4 = self.down3_4(out_enc_level3)
@@ -538,23 +526,4 @@ def downmask(mask, k):
     out_mask = m.cuda()
     return out_mask
 
-if __name__ == "__main__":
-    inputs = torch.randn([1, 3, 600, 400])
-    net = former(dd_in=3,embed_dim=48)  # 定义好的网络模型
-    inputs = torch.randn(1, 3, 512, 512)
-    inputs1 = torch.randn(1, 1, 512, 512)
-    device = torch.device('cuda:0')
-    inputs = inputs.to(device)
-    inputs1 = inputs1.to(device)
-    flops, params = profile(net.cuda(), (inputs,inputs1,))
-    print('flops: ', flops, 'params: ', params)
-
-# if __name__ == '__main__':
-#     x = torch.randn([1, 48, 400, 600])
-#     zero = torch.randn([1, 48, 400, 600])
-#     #torch.max(x, dim=1, keepdim=True)
-#     # x = torch.mean(x, 1).unsqueeze(1)
-#     mode = Attention_withZeromap(dim=48,  num_heads=4, bias=True)
-#     y = mode(x,zero)
-#     print(y.shape)
 

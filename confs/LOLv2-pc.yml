@@ -2,7 +2,7 @@
 
 
 #### general settings
-name: test_no_projout
+name: test_LOLv1
 # name: no-delay-batch16_patch160_L_3_iter3W_gaussianNoise5Prob0_ModifiedConEncoder1_noSplit_nb16_concat_histeq_logLow_EncoderGammaCurve
 
 use_tb_logger: true
@@ -36,21 +36,21 @@ le_curve: false
 datasets:
   train:
     # name: LoL
-    root: D:\Learning\Flow_Test\new
+    root: D:\Datasets\LOLv1
     quant: 32
     use_shuffle: true
     n_workers: 0   # per GPU
-    batch_size: 8 # 12
+    batch_size: 4 # 12
     use_flip: true
     color: RGB
     use_crop: true
-    GT_size: 128 # 192
+    GT_size: 256 # 192
     noise_prob: 0
     noise_level: 5
     log_low: true
 
   val:
-    root: D:\Learning\Flow_Test\new
+    root: D:\Datasets\LOLv1
     n_workers: 1
     quant: 32
     n_max: 20
@@ -59,11 +59,11 @@ datasets:
 
 #### Test Settings
 dataroot_unpaired: /home/data/Dataset/LOL_test/Fusion
-dataroot_GT: D:\Datasets\LOLv2real\Test\high
-dataroot_LR: D:\Datasets\LOLv2real\Test\Low
+dataroot_GT: D:\Datasets\LOLv1
+dataroot_LR: D:\Datasets\LOLv1
 #dataroot_GT: D:\Dataset\LOL-v2\LOL-v2\Test\2
 #dataroot_LR: D:\Dataset\LOL-v2\LOL-v2\Test\1
-model_path: D:\Learning\Flow_Test\best_psnr_G.pth
+model_path: D:\jing\Flow_Test_1\experiments\test_SMID\models\best_psnr_G.pth
 heat: 0 # This is the standard deviation of the latent vectors
 
 #### network structures
@@ -98,21 +98,21 @@ path:
 #### training settings: learning rate scheme, loss
 train:
   manual_seed: 10
-  lr_G: !!float 2e-4
+  lr_G: !!float 1e-4
   weight_decay_G: 0 #1e-5 # 1e-5 # 5e-5 # 1e-5
   beta1: 0.9
   beta2: 0.99
   lr_scheme: MultiStepLR
   warmup_iter: 200  # no warm up
-  lr_steps_rel: [ 0.5, 0.75, 0.9, 0.95 ] # [0.2, 0.35, 0.5, 0.65, 0.8, 0.95]  # [ 0.5, 0.75, 0.9, 0.95 ]
+  lr_steps_rel: [ 0.5, 0.85, 0.9, 0.95 ] #[ 0.5, 0.75, 0.9, 0.95 ] # [0.2, 0.35, 0.5, 0.65, 0.8, 0.95]  # [ 0.5, 0.75, 0.9, 0.95 ]  # [ 0.3, 0.6, 0.8, 0.9 ]
   lr_gamma: 0.5
 
   weight_l1: 0
   # flow_warm_up_iter: -1
   weight_fl: 1
 
-  niter: 80000 #200000
-  val_freq: 500
+  niter: 160000 #200000
+  val_freq: 200
 
 #### validation settings
 val:
@@ -126,4 +126,4 @@ test:
 logger:
   # Debug print_freq: 100
   print_freq: 50
-  save_checkpoint_freq: !!float 500
+  save_checkpoint_freq: !!float 200
