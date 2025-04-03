@@ -9,7 +9,7 @@ SID & SMID & SDSD (indoor & outdoor): Please refer to the paper [SNR-aware Low-L
 ## Testing
 
 ### Pre-trained Models
-The pretrained models will be released soon.
+The pretrained models can be downloaded [HERE](https://pan.baidu.com/s/1HsZeKHTo7i7ZBRou_XKMBg?pwd=4jxa) .
 
 
 ## Run the testing code
